@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Taksówkowy Pro v10</title>
+    <style>
+        :root { --primary: #f1c40f; --vip: #e74c3c; --secondary: #2c3e50; --bg: #f4f7f6; --gold: #d4af37; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        header { background: var(--secondary); color: var(--primary); padding: 20px; text-align: center; }
+        .container { max-width: 500px; margin: 20px auto; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; transition: all 0.3s ease; }
+        label { display: block; margin: 10px 0 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; font-family: inherit; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-order { background: var(--primary); color: var(--secondary); margin-top: 15px; }
+        .btn-delete { background: #ff7675; color: white; padding: 5px 10px; width: auto; font-size: 12px; margin-top: 10px; }
+        .btn-pass { background: #95a5a6; color: white; margin-top: 20px; font-size: 12px; }
+        
+        /* Stylowe powiadomienia */
+        .toast-notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none; z-index: 1000; font-weight: bold; border-left: 5px solid var(--primary); }
+        
+        /* Panel logowania */
+        #login-panel { display: none; text-align: center; border: 2px solid var(--primary); }
+        .btn-login { background: var(--secondary); color: white; margin-top: 10px; }
+        
+        /* Sekcja dodatków VIP */
+        #vip-addon-section { display: none; background: #fffdf3; border: 2px solid var(--gold); padding: 15px; border-radius: 10px; margin-top: 10px; margin-bottom: 15px; }
+        .vip-title { color: var(--gold); font-weight: bold; margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+        .checkbox-group { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
+        .checkbox-item input { width: auto; margin: 0; cursor: pointer; }
+        #vip-custom-request-box { display: none; margin-top: 10px; }
+
+        /* Styl Pola Podpisu */
+        .signature-container { border: 2px solid #bdc3c7; background: #fafafa; border-radius: 8px; position: relative; margin-bottom: 10px; overflow: hidden; }
+        .signature-line { position: absolute; bottom: 30px; left: 5%; width: 90%; border-bottom: 2px dashed #b2bec3; pointer-events: none; }
+        canvas { display: block; width: 100%; height: 150px; cursor: crosshair; touch-action: none; position: relative; background: transparent; }
+        .btn-clear { background: #e74c3c; color: white; padding: 5px 10px; font-size: 12px; border-radius: 4px; width: auto; margin-top: 5px; display: inline-block; }
+        
+        .booking-box { border: 2px solid #eee; padding: 15px; border-radius: 10px; margin-bottom: 15px; background: #fff; }
+        .tag-vip { background: var(--vip); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; float: right; font-weight: bold; box-shadow: 0 2px 5px rgba(231, 76, 60, 0.3); }
+        .tag-normal { background: var(--primary); color: var(--secondary); padding: 2px 6px; border-radius: 4px; font-size: 10px; float: right; }
+        .saved-signature { border: 1px solid #ddd; background: #f9f9f9; max-width: 100%; height: 80px; margin-top: 10px; display: block; }
+        .vip-summary-box { background: #fffdf0; border: 1px solid var(--gold); padding: 8px; border-radius: 6px; margin-top: 10px; font-size: 13px; }
+        
+        #admin-panel { display: none; }
+        .footer-link { text-align: center; margin-top: 30px; color: #bdc3c7; cursor: pointer; font-size: 14px; text-decoration: underline; }
+        
+        /* Osobne kafelki ustawień */
+        .setting-card { background: #fafafa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 12px; text-align: left; }
+        .setting-card h5 { margin: 0 0 10px 0; font-size: 15px; color: var(--secondary); display: flex; align-items: center; gap: 5px; }
+        .input-row { display: flex; gap: 8px; }
+        .btn-inline { width: auto; padding: 0 15px; font-size: 13px; background: #7f8c8d; color: white; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="toast" class="toast-notification"></div>
+
+<header>
+    <h1>🚖 Taxi Service</h1>
+</header>
+
+<div class="container">
+    <!-- SEKCJA KLIENTA -->
+    <div id="client-view" class="card">
+        <h2>Zarezerwuj przejazd</h2>
+        <form id="orderForm">
+            <label>Wybierz usługę</label>
+            <select id="type" onchange="toggleVipFeatures()" required>
+                <option value="Taksówka Zwykła">🚕 Taksówka Zwykła</option>
+                <option value="Taksówka VIP">⭐ Taksówka VIP (Wymaga kodu)</option>
+                <option value="Bus">🚌 Bus</option>
+            </select>
+
+            <!-- EXTRA SEKRETY DLA VIP -->
+            <div id="vip-addon-section">
+                <p class="vip-title">✨ Strefa Udogodnień VIP</p>
+                
+                <label>Wpisz specjalny kod VIP</label>
+                <input type="text" id="vipCodeInput" placeholder="Wprowadź kod VIP">
+                
+                <label id="vipLimitInfoLabel">Wybierz dodatki premium:</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="💆 Masaż fotela podczas jazdy" onchange="checkVipLimit(this)"> 💆 Masaż fotela podczas jazdy</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="🥂 Schłodzony szampan powitalny" onchange="checkVipLimit(this)"> 🥂 Schłodzony szampan powitalny</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="🍫 Zestaw słodkich przekąsek (Premium)" onchange="checkVipLimit(this)"> 🍫 Zestaw słodkich przekąsek (Premium)</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="☕ Ciepła kawa / świeża herbata" onchange="checkVipLimit(this)"> ☕ Ciepła kawa / świeża herbata</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="🎵 Możliwość włączenia własnej muzyki" onchange="checkVipLimit(this)"> 🎵 Możliwość włączenia własnej muzyki</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="📱 Dostęp do luksusowego iPada" onchange="checkVipLimit(this)"> 📱 Dostęp do luksusowego iPada</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="🔌 Bezprzewodowe ładowarki do każdego telefonu" onchange="checkVipLimit(this)"> 🔌 Bezprzewodowe ładowarki do każdego telefonu</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="💨 Ulubiony zapach perfum w aucie" onchange="checkVipLimit(this)"> 💨 Ulubiony zapach perfum w aucie</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="📰 Świeża prasa i codzienne wiadomości" onchange="checkVipLimit(this)"> 📰 Świeża prasa i codzienne wiadomości</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="🤫 Strefa ciszy (Kierowca nie rozmawia)" onchange="checkVipLimit(this)"> 🤫 Strefa ciszy (Kierowca nie rozmawia)</label>
+                    <label class="checkbox-item"><input type="checkbox" class="vip-checkbox" value="Inne" id="vipCustomCheck" onchange="toggleVipCustomRequest(this)"> ✍️ Inne (Własne życzenie klienta)</label>
+                </div>
+                
+                <div id="vip-custom-request-box">
+                    <label>Napisz, co dokładnie chcesz w aucie:</label>
+                    <textarea id="vipCustomText" rows="2" placeholder="Wpisz swoje specjalne życzenie..."></textarea>
+                </div>
+            </div>
+
+            <label>Imię i Nazwisko</label>
+            <input type="text" id="name" placeholder="Np. Jan Kowalski" required>
+
+            <label>Kiedy (Data i Godzina)</label>
+            <input type="datetime-local" id="time" required>
+
+            <label>Skąd (Adres odbioru)</label>
+            <input type="text" id="from" placeholder="Ulica i numer" required>
+
+            <label>Dokąd jedziemy?</label>
+            <input type="text" id="to" placeholder="Cel podróży" required>
+
+            <label>Wymagany podpis klienta (Podpisz się na kresce)</label>
+            <div class="signature-container">
+                <div class="signature-line"></div>
+                <canvas id="signaturePad"></canvas>
+            </div>
+            <button type="button" class="btn-clear" onclick="clearSignature()">Wyczyść / Popraw podpis</button>
+
+            <button type="submit" class="btn-order">ZAMÓW PRZEJAZD</button>
+        </form>
+    </div>
+
+    <!-- PANEL LOGOWANIA KIEROWCY -->
+    <div id="login-panel" class="card">
+        <h3 style="margin-top:0; color: var(--secondary);">🔐 Panel Logowania Kierowcy</h3>
+        <p style="font-size:14px; color:#7f8c8d;">Wprowadź kod dostępu, aby zarządzać zleceniami.</p>
+        <label>Podaj hasło</label>
+        <input type="password" id="passInput" placeholder="****">
+        <button class="btn-login" onclick="checkLoginData()">ZALOGUJ SIĘ</button>
+        <p onclick="closeLoginPanel()" style="font-size:12px; color:#e74c3c; cursor:pointer; margin-top:15px; font-weight:bold;">Anuluj</p>
+    </div>
+
+    <!-- SEKCJA KIEROWCY (PANEL ADMINA) -->
+    <div id="admin-panel" class="card">
+        <h2 style="border-bottom: 2px solid var(--primary); padding-bottom: 10px;">📋 Lista Rezerwacji</h2>
+        <div id="reservation-list"></div>
+        
+        <!-- Opcje i Ustawienia w osobnych kafelkach -->
+        <div id="password-change-box" style="margin-top:20px; display:none;">
+            <h4 style="margin-top:0; color: var(--secondary);">⚙️ Ustawienia Systemu</h4>
+            
+            <!-- OSOBNY KAFELEK DLA HASŁA Z OPCJĄ SPRAWDZANIA -->
+            <div class="setting-card">
+                <h5>🔐 Hasło dostępu kierowcy</h5>
+                <div class="input-row">
+                    <input type="password" id="newPassField" placeholder="Wpisz nowe hasło">
+                    <button type="button" class="btn-inline" onclick="revealAndCheckPassword()">👁️ Pokaż</button>
+                </div>
+            </div>
+
+            <!-- KAFELEK VIP KOD -->
+            <div class="setting-card">
+                <h5>👑 Kod autoryzacji VIP</h5>
+                <input type="text" id="newVipCodeField" placeholder="Wpisz kod dla klientów VIP">
+            </div>
+
+            <!-- KAFELEK VIP LIMIT -->
+            <div class="setting-card">
+                <h5>📊 Limit dodatków VIP</h5>
+                <input type="number" id="newVipLimitField" min="1" placeholder="Np. 2">
+            </div>
+
+            <!-- KAFELEK CZASU -->
+            <div class="setting-card">
+                <h5>⏳ Czas automatycznego usuwania</h5>
+                <input type="number" id="expireMinutesField" min="0" placeholder="Minuty (0 = wyłączone)">
+            </div>
+            
+            <button onclick="saveSettings()" style="background:var(--primary); font-size:14px; padding:10px;">Zapisz wszystkie zmiany</button>
+        </div>
+
+        <button onclick="toggleSettingsBox()" class="btn-pass" style="margin-top:15px;">Opcje / Zmień hasło, limity i kody</button>
+        <button onclick="logout()" style="background:#2c3e50; color:white; margin-top:10px;">Wróć do strony głównej</button>
+    </div>
+
+    <div id="footer-toggle" class="footer-link" onclick="openLoginPanel()">🔐 Logowanie Kierowcy</div>
+</div>
+
+<script>
+    let bookings = JSON.parse(localStorage.getItem('taxi_bookings_v9')) || [];
+    let currentPass = localStorage.getItem('taxi_pass') || "7987";
+    let expireMinutes = localStorage.getItem('taxi_expire_minutes') !== null ? parseInt(localStorage.getItem('taxi_expire_minutes')) : 5;
+    let currentVipCode = localStorage.getItem('taxi_vip_code') || "VIP2026";
+    let vipAddonLimit = localStorage.getItem('taxi_vip_limit') !== null ? parseInt(localStorage.getItem('taxi_vip_limit')) : 2;
+
+    const orderForm = document.getElementById('orderForm');
+    const resList = document.getElementById('reservation-list');
+    
+    const canvas = document.getElementById('signaturePad');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let hasSigned = false;
+
+    function initCanvas() {
+        const currentData = hasSigned ? canvas.toDataURL() : null;
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = 150;
+        ctx.strokeStyle = "#2c3e50";
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        
+        if (currentData) {
+            const img = new Image();
+            img.onload = function() { ctx.drawImage(img, 0, 0); };
+            img.src = currentData;
+        }
+    }
+    
+    window.addEventListener('resize', initCanvas);
+    window.addEventListener('load', initCanvas);
+
+    function toggleVipFeatures() {
+        const type = document.getElementById('type').value;
+        const vipSection = document.getElementById('vip-addon-section');
+        if (type === "Taksówka VIP") {
+            vipSection.style.display = 'block';
+            document.getElementById('vipLimitInfoLabel').innerText = `Wybierz dodatki premium (Maksymalnie ${vipAddonLimit}):`;
+        } else {
+            vipSection.style.display = 'none';
+        }
+    }
+
+    function checkVipLimit(element) {
+        const checkedCount = document.querySelectorAll('.vip-checkbox:checked').length;
+        if (checkedCount > vipAddonLimit) {
+            element.checked = false; 
+            showToast(`⚠️ Limit przekroczony! Możesz wybrać maksymalnie ${vipAddonLimit} opcje.`);
+        }
+    }
+
+    function toggleVipCustomRequest(element) {
+        checkVipLimit(element);
+        const customCheck = document.getElementById('vipCustomCheck');
+        const customBox = document.getElementById('vip-custom-request-box');
+        customBox.style.display = customCheck.checked ? 'block' : 'none';
+    }
+
+    // Funkcja ujawniająca aktualnie wpisane hasło do weryfikacji
+    function revealAndCheckPassword() {
+        const passField = document.getElementById('newPassField');
+        if (passField.value === "") {
+            showToast("⚠️ Pole hasła jest puste!");
+            return;
+        }
+        
+        // Zmień typ na tekstowy aby kierowca widział hasło
+        passField.type = "text";
+        showToast(`🔑 Wpisane hasło to: ${passField.value}`);
+        
+        // Po 3 sekundach ukryj z powrotem automatycznie dla bezpieczeństwa
+        setTimeout(() => {
+            passField.type = "password";
+        }, 3000);
+    }
+
+    function autoDeleteExpiredBookings() {
+        if (expireMinutes === 0) return;
+
+        const teraz = Date.now();
+        let zmieniono = false;
+
+        bookings = bookings.filter(order => {
+            const czasRezerwacji = new Date(order.time).getTime();
+            if (teraz > (czasRezerwacji + expireMinutes * 60 * 1000)) {
+                zmieniono = true;
+                return false; 
+            }
+            return true; 
+        });
+
+        if (zmieniono) {
+            localStorage.setItem('taxi_bookings_v9', JSON.stringify(bookings));
+            if (document.getElementById('admin-panel').style.display === 'block') {
+                renderBookings(); 
+            }
+        }
+    }
+
+    setInterval(autoDeleteExpiredBookings, 1000);
+
+    function showToast(text) {
+        const toast = document.getElementById('toast');
+        toast.innerText = text;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        hasSigned = true;
+    }
+
+    function stopDrawing() { isDrawing = false; }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', stopDrawing);
+
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    window.addEventListener('touchend', stopDrawing);
+
+    function clearSignature() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasSigned = false;
+    }
+
+    orderForm.onsubmit = function(e) {
+        e.preventDefault();
+        const serviceType = document.getElementById('type').value;
+
+        if (serviceType === "Taksówka VIP") {
+            const typedCode = document.getElementById('vipCodeInput').value;
+            if (typedCode !== currentVipCode) {
+                showToast("❌ Podany kod VIP jest nieprawidłowy!");
+                return;
+            }
+        }
+
+        if (!hasSigned) {
+            showToast("⚠️ Błąd: Podpis jest wymagany!");
+            return;
+        }
+
+        let selectedAddons = [];
+        if (serviceType === "Taksówka VIP") {
+            const checkboxes = document.querySelectorAll('.vip-checkbox');
+            checkboxes.forEach(cb => {
+                if (cb.checked && cb.id !== 'vipCustomCheck') {
+                    selectedAddons.push(cb.value);
+                }
+            });
+            if (document.getElementById('vipCustomCheck').checked) {
+                const customText = document.getElementById('vipCustomText').value.trim();
+                selectedAddons.push("Życzenie specjalne: " + (customText ? customText : "Brak opisu"));
+            }
+        }
+
+        const signatureImg = canvas.toDataURL();
+        
+        const newOrder = {
+            id: Date.now(),
+            type: serviceType,
+            name: document.getElementById('name').value,
+            time: document.getElementById('time').value,
+            from: document.getElementById('from').value,
+            to: document.getElementById('to').value,
+            signature: signatureImg,
+            addons: selectedAddons
+        };
+
+        bookings.push(newOrder);
+        localStorage.setItem('taxi_bookings_v9', JSON.stringify(bookings));
+        
+        showToast("✅ Sukces! Rezerwacja została zapisana.");
+        orderForm.reset();
+        clearSignature();
+        toggleVipFeatures();
+    };
+
+    function openLoginPanel() {
+        document.getElementById('client-view').style.display = 'none';
+        document.getElementById('footer-toggle').style.display = 'none';
+        document.getElementById('login-panel').style.display = 'block';
+        document.getElementById('passInput').focus();
+    }
+
+    function closeLoginPanel() {
+        document.getElementById('login-panel').style.display = 'none';
+        document.getElementById('client-view').style.display = 'block';
+        document.getElementById('footer-toggle').style.display = 'block';
+        document.getElementById('passInput').value = "";
+    }
+
+    function checkLoginData() {
+        const wpisaneHaslo = document.getElementById('passInput').value;
+        if (wpisaneHaslo === currentPass) {
+            document.getElementById('login-panel').style.display = 'none';
+            document.getElementById('admin-panel').style.display = 'block';
+            renderBookings();
+            document.getElementById('passInput').value = "";
+            
+            document.getElementById('newPassField').value = currentPass;
+            document.getElementById('newVipCodeField').value = currentVipCode;
+            document.getElementById('newVipLimitField').value = vipAddonLimit;
+            document.getElementById('expireMinutesField').value = expireMinutes;
+        } else {
+            showToast("❌ Błędne hasło dostępu!");
+        }
+    }
+
+    function renderBookings() {
+        resList.innerHTML = "";
+        if (bookings.length === 0) {
+            resList.innerHTML = "<p style='color:gray;'>Brak aktualnych rezerwacji.</p>";
+            return;
+        }
+
+        bookings.forEach(order => {
+            const isVip = order.type.includes("VIP");
+            const box = document.createElement('div');
+            box.className = 'booking-box';
+            
+            let vipDetailsHtml = "";
+            if (isVip && order.addons && order.addons.length > 0) {
+                vipDetailsHtml = `
+                    <div class="vip-summary-box">
+                        <b style="color:var(--gold);">👑 Zachcianki VIP:</b>
+                        <ul style="margin:5px 0 0 15px; padding:0; font-size:12px;">
+                            ${order.addons.map(addon => `<li>${addon}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            box.innerHTML = `
+                <span class="${isVip ? 'tag-vip' : 'tag-normal'}">${order.type}</span>
+                <strong>👤 Nazwa: ${order.name}</strong><br>
+                <small>📅 Kiedy: ${order.time.replace('T', ' ')}</small><br><br>
+                <div style="font-size: 14px;">
+                    <b>Z:</b> ${order.from}<br>
+                    <b>DO:</b> ${order.to}
+                </div>
+                ${vipDetailsHtml}
+                <div style="margin-top:10px;">
+                    <small style="font-weight:bold; display:block;">Podpis klienta:</small>
+                    <img src="${order.signature}" class="saved-signature" alt="Podpis">
+                </div>
+                <button class="btn-delete" onclick="deleteOrder(${order.id})">USUŃ REZERWACJĘ</button>
+            `;
+            resList.appendChild(box);
+        });
+    }
+
+    function deleteOrder(id) {
+        bookings = bookings.filter(b => b.id !== id);
+        localStorage.setItem('taxi_bookings_v9', JSON.stringify(bookings));
+        renderBookings();
+        showToast("🗑️ Usunięto rezerwację.");
+    }
+
+    function toggleSettingsBox() {
+        const box = document.getElementById('password-change-box');
+        box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function saveSettings() {
+        const newP = document.getElementById('newPassField').value;
+        const newV = document.getElementById('newVipCodeField').value.trim();
+        const newL = document.getElementById('newVipLimitField').value;
+        const newM = document.getElementById('expireMinutesField').value;
+
+        if(!newP || !newV || !newL || newM === "") {
+            showToast("⚠️ Wszystkie pola ustawień muszą być wypełnione!");
+            return;
+        }
+
+        currentPass = newP;
+        currentVipCode = newV;
+        vipAddonLimit = parseInt(newL);
+        expireMinutes = parseInt(newM);
+
+        localStorage.setItem('taxi_pass', currentPass);
+        localStorage.setItem('taxi_vip_code', currentVipCode);
+        localStorage.setItem('taxi_vip_limit', vipAddonLimit);
+        localStorage.setItem('taxi_expire_minutes', expireMinutes);
+
+        showToast("⚙️ Wszystkie zmiany zostały pomyślnie zapisane!");
+        document.getElementById('password-change-box').style.display = 'none';
+        
+        autoDeleteExpiredBookings();
+    }
+
+    function logout() {
+        document.getElementById('admin-panel').style.display = 'none';
+        document.getElementById('password-change-box').style.display = 'none';
+        document.getElementById('client-view').style.display = 'block';
+        document.getElementById('footer-toggle').style.display = 'block';
+        setTimeout(initCanvas, 50);
+    }
+</script>
+
+</body>
+</html>
